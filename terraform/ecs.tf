@@ -3,6 +3,7 @@ locals {
     cluster_name                        = "webui-bedrock-cluster"
     service_name_webui                  = "openwebui"
     service_name_bedrock_access_gateway = "bedrock-access-gateway"
+    service_name_mcpo                   = "mcpo"
   }
 }
 
@@ -38,6 +39,11 @@ module "alb_sg" {
     {
       cidr_blocks = ["0.0.0.0/0"]
       port        = 80
+      protocol    = "tcp"
+    },
+    {
+      cidr_blocks = ["0.0.0.0/0"]
+      port        = 443
       protocol    = "tcp"
     }
   ]
@@ -107,8 +113,22 @@ data "aws_iam_policy_document" "task_execution_policy" {
   }
 
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.bag_api_key_secret.arn]
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = [
+      aws_secretsmanager_secret.bag_api_key_secret.arn,
+      aws_secretsmanager_secret.mcpo_api_key_secret.arn,
+      aws_secretsmanager_secret.gitlab_token_secret.arn
+    ]
+  }
+
+  statement {
+    actions = [
+      "ssmmessages:CreateControlChannel",
+      "ssmmessages:CreateDataChannel",
+      "ssmmessages:OpenControlChannel",
+      "ssmmessages:OpenDataChannel"
+    ]
+    resources = ["*"]
   }
 }
 
@@ -146,7 +166,8 @@ module "bag_service_role" {
   managed_policy_arns = [aws_iam_policy.bag_service_policy.arn]
 }
 
-# OpenWebUI ECS Service
+# OPENWEBUI
+## OpenWebUI ECS Service
 module "ecs_service_openwebui_sg" {
   source = "./modules/security_group"
 
@@ -172,8 +193,8 @@ resource "aws_ecs_task_definition" "task_definition_openwebui" {
   family                   = local.ecs.service_name_webui
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
-  memory                   = 1024
-  cpu                      = 512
+  memory                   = 4096
+  cpu                      = 2048
   execution_role_arn       = module.task_execution_role.arn
 
   container_definitions = jsonencode([
@@ -236,12 +257,13 @@ resource "aws_ecs_task_definition" "task_definition_openwebui" {
 }
 
 resource "aws_ecs_service" "ecs_service_openwebui" {
-  name                 = local.ecs.service_name_webui
-  cluster              = aws_ecs_cluster.ecs_cluster.id
-  task_definition      = aws_ecs_task_definition.task_definition_openwebui.arn
-  desired_count        = 1
-  launch_type          = "FARGATE"
-  force_new_deployment = true
+  name                   = local.ecs.service_name_webui
+  cluster                = aws_ecs_cluster.ecs_cluster.id
+  task_definition        = aws_ecs_task_definition.task_definition_openwebui.arn
+  desired_count          = 1
+  launch_type            = "FARGATE"
+  force_new_deployment   = true
+  enable_execute_command = true
 
   network_configuration {
     subnets          = aws_subnet.webui_private_subnets[*].id
@@ -256,7 +278,7 @@ resource "aws_ecs_service" "ecs_service_openwebui" {
   }
 }
 
-# OpenWebUI EFS
+## OpenWebUI EFS
 module "efs_sg" {
   source = "./modules/security_group"
   name   = "efs-sg"
@@ -299,8 +321,8 @@ resource "aws_efs_mount_target" "efs_mount" {
   security_groups = [module.efs_sg.id]
 }
 
-# Bedrock Access Gateway ECS Service
-module "ecs_service_bag_sg" {
+# MODULES FOR OPENWEBUI
+module "ecs_service_module_sg" {
   source = "./modules/security_group"
 
   name   = "${local.ecs.service_name_bedrock_access_gateway}-sg"
@@ -321,6 +343,7 @@ module "ecs_service_bag_sg" {
   ]
 }
 
+## Bedrock Access Gateway ECS Service
 resource "aws_ecs_task_definition" "task_definition_bag" {
   family                   = local.ecs.service_name_bedrock_access_gateway
   network_mode             = "awsvpc"
@@ -377,12 +400,81 @@ resource "aws_ecs_service" "ecs_service_bag" {
 
   network_configuration {
     subnets          = aws_subnet.bag_private_subnets[*].id
-    security_groups  = [module.ecs_service_bag_sg.id]
+    security_groups  = [module.ecs_service_module_sg.id]
     assign_public_ip = false
   }
 
   service_registries {
-    registry_arn = aws_service_discovery_service.sd_discovery_service.arn
+    registry_arn = aws_service_discovery_service.sd_discovery_service_bag.arn
+  }
+}
+
+## MCPO ECS Service
+resource "aws_ecs_task_definition" "task_definition_mcpo" {
+  family                   = local.ecs.service_name_mcpo
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  memory                   = 1024
+  cpu                      = 512
+  execution_role_arn       = module.task_execution_role.arn
+
+  runtime_platform {
+    cpu_architecture        = "ARM64"
+    operating_system_family = "LINUX"
+  }
+
+  container_definitions = jsonencode([
+    {
+      name      = "mcpo"
+      image     = "${aws_ecr_repository.mcpo_repository.repository_url}:latest"
+      essential = true
+      portMappings = [
+        {
+          containerPort = 80
+          hostPort      = 80
+          protocol      = "tcp"
+        }
+      ]
+      secrets = [
+        {
+          name      = "API_KEY"
+          valueFrom = aws_secretsmanager_secret.mcpo_api_key_secret.arn
+        },
+        {
+          name      = "GITLAB_PERSONAL_ACCESS_TOKEN"
+          valueFrom = aws_secretsmanager_secret.gitlab_token_secret.arn
+        }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs",
+        options = {
+          awslogs-group         = "/ecs/${local.ecs.cluster_name}"
+          awslogs-region        = var.region
+          awslogs-create-group  = "true"
+          awslogs-stream-prefix = "ecs"
+        }
+      }
+    }
+  ])
+}
+
+resource "aws_ecs_service" "ecs_service_mcpo" {
+  name            = local.ecs.service_name_mcpo
+  cluster         = aws_ecs_cluster.ecs_cluster.id
+  task_definition = aws_ecs_task_definition.task_definition_mcpo.arn
+
+  desired_count        = 1
+  launch_type          = "FARGATE"
+  force_new_deployment = true
+
+  network_configuration {
+    subnets          = aws_subnet.bag_private_subnets[*].id
+    security_groups  = [module.ecs_service_module_sg.id]
+    assign_public_ip = true
+  }
+
+  service_registries {
+    registry_arn = aws_service_discovery_service.sd_discovery_service_mcpo.arn
   }
 }
 
@@ -392,8 +484,27 @@ resource "aws_service_discovery_private_dns_namespace" "sd_dns_namespace" {
   vpc  = aws_vpc.default.id
 }
 
-resource "aws_service_discovery_service" "sd_discovery_service" {
+resource "aws_service_discovery_service" "sd_discovery_service_bag" {
   name = "gateway"
+
+  dns_config {
+    namespace_id = aws_service_discovery_private_dns_namespace.sd_dns_namespace.id
+
+    dns_records {
+      ttl  = 10
+      type = "A"
+    }
+
+    routing_policy = "MULTIVALUE"
+  }
+
+  health_check_custom_config {
+    failure_threshold = 1
+  }
+}
+
+resource "aws_service_discovery_service" "sd_discovery_service_mcpo" {
+  name = "mcpo"
 
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.sd_dns_namespace.id

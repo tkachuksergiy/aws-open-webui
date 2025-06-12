@@ -44,14 +44,14 @@ resource "aws_subnet" "webui_private_subnets" {
   }
 }
 
-resource "aws_subnet" "bag_private_subnets" {
+resource "aws_subnet" "module_private_subnets" {
   count = length(local.availability_zones)
 
   vpc_id            = aws_vpc.default.id
   cidr_block        = cidrsubnet(local.vpc_cidr, 4, count.index + 2 * length(local.availability_zones)) # Calculate subnet CIDR (add an offset because of public subnets)
   availability_zone = local.availability_zones[count.index]
   tags = {
-    Name = "bag-private-subnet-${local.availability_zones[count.index]}",
+    Name = "module-private-subnet-${local.availability_zones[count.index]}",
     Type = "Private"
   }
 }
@@ -114,9 +114,9 @@ resource "aws_route_table_association" "private_rt_association_webui" {
   subnet_id      = aws_subnet.webui_private_subnets[count.index].id
 }
 
-resource "aws_route_table_association" "private_rt_association_bag" {
+resource "aws_route_table_association" "private_rt_association_module" {
   count = length(local.availability_zones)
 
   route_table_id = aws_route_table.private_route_table[count.index].id
-  subnet_id      = aws_subnet.bag_private_subnets[count.index].id
+  subnet_id      = aws_subnet.module_private_subnets[count.index].id
 }
