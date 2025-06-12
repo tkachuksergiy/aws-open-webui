@@ -399,7 +399,7 @@ resource "aws_ecs_service" "ecs_service_bag" {
   force_new_deployment = true
 
   network_configuration {
-    subnets          = aws_subnet.bag_private_subnets[*].id
+    subnets          = aws_subnet.module_private_subnets[*].id
     security_groups  = [module.ecs_service_module_sg.id]
     assign_public_ip = false
   }
@@ -468,7 +468,7 @@ resource "aws_ecs_service" "ecs_service_mcpo" {
   force_new_deployment = true
 
   network_configuration {
-    subnets          = aws_subnet.bag_private_subnets[*].id
+    subnets          = aws_subnet.module_private_subnets[*].id
     security_groups  = [module.ecs_service_module_sg.id]
     assign_public_ip = true
   }
