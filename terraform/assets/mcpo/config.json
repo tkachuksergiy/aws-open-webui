@@ -11,6 +11,10 @@
                 "GITLAB_API_URL": "https://gitlab.com/api/v4",
                 "GITLAB_READ_ONLY_MODE": "false"
             }
+        },
+        "linear": {
+            "command": "uvx",
+            "args": [ "mcp-linear"]
         }
     }
 }

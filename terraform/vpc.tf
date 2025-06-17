@@ -120,3 +120,100 @@ resource "aws_route_table_association" "private_rt_association_module" {
   route_table_id = aws_route_table.private_route_table[count.index].id
   subnet_id      = aws_subnet.module_private_subnets[count.index].id
 }
+
+# VPC Endpoints
+data "aws_iam_policy_document" "secretsmanager_endpoint_policy" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = [var.account_id]
+    }
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["arn:aws:secretsmanager:*:${var.account_id}:secret:*"]
+  }
+}
+
+data "aws_iam_policy_document" "logs_endpoint_policy" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = [var.account_id]
+    }
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogGroups",
+      "logs:CreateExportTask",
+      "logs:DescribeExportTasks",
+      "logs:ListTagsLogGroup"
+    ]
+    resources = ["*"]
+  }
+}
+
+data "aws_iam_policy_document" "kms_endpoint_policy" {
+  statement {
+    effect = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = [var.account_id]
+    }
+    actions = [
+      "kms:Decrypt",
+      "kms:Encrypt",
+      "kms:GenerateDataKey*",
+      "kms:Sign"
+    ]
+    resources = [
+      "arn:aws:kms:*:${var.account_id}:key/*"
+    ]
+  }
+}
+
+module "vpc_interface_endpoints" {
+  source = "./modules/vpc_endpoints_interface"
+
+  region = var.region
+
+  vpc = {
+    id         = aws_vpc.default.id
+    cidr       = local.vpc_cidr
+    subnet_ids = aws_subnet.module_private_subnets[*].id
+  }
+
+  vpc_interface_endpoints = [
+    {
+      name = "bedrock"
+    },
+    {
+      name = "bedrock-runtime"
+    },
+    {
+      name = "elasticfilesystem"
+    },
+    {
+      name = "elasticfilesystem-fips"
+    },
+    {
+      name   = "secretsmanager"
+      policy = data.aws_iam_policy_document.secretsmanager_endpoint_policy.json
+    },
+    {
+      name = "ecr.api"
+    },
+    {
+      name = "ecr.dkr"
+    },
+    {
+      name   = "logs"
+      policy = data.aws_iam_policy_document.logs_endpoint_policy.json
+    },
+    {
+      name   = "kms"
+      policy = data.aws_iam_policy_document.kms_endpoint_policy.json
+    }
+  ]
+}

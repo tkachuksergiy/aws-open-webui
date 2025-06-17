@@ -1,12 +1,15 @@
 #!/bin/bash
 
-cd terraform 
-
 # Clone Bedrock Access Gateway repository
-git clone https://github.com/aws-samples/bedrock-access-gateway
+if [ ! -d "terraform/assets/bedrock-access-gateway" ]; then
+  git clone https://github.com/aws-samples/bedrock-access-gateway terraform/assets/bedrock-access-gateway
+fi
 
 # Clone Open WebUI repository
-git clone https://github.com/open-webui/open-webui
+if [ ! -d "terraform/assets/open-webui" ]; then
+  git clone https://github.com/open-webui/open-webui terraform/assets/open-webui
+  sed -i '' 's|RUN npm run build|RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build|' stack-ai/assets/open-webui/Dockerfile
+fi
 
 # Init and apply Terraform configuration
-terraform init && terraform apply
+cd terraform && terraform init && terraform apply

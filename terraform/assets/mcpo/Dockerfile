@@ -17,7 +17,7 @@ RUN pip install mcpo uv
 
 EXPOSE 80
 
-CMD ["uvx", "mcpo", "--host", "0.0.0.0", "--port", "80", "--api-key", "$API_KEY", "--config", "/app/config.json"]
+#CMD ["uvx", "mcpo", "--host", "0.0.0.0", "--port", "80", "--api-key", "$API_KEY", "--config", "/app/config.json"]
 
 # Uncomment the following line if you want to run mcpo directly without API key
-#CMD ["uvx", "mcpo", "--host", "0.0.0.0", "--port", "80", "--config", "/app/config.json"]
+CMD ["uvx", "mcpo", "--host", "0.0.0.0", "--port", "80", "--config", "/app/config.json"]

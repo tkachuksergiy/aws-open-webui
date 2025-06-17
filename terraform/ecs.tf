@@ -13,7 +13,7 @@ resource "aws_iam_service_linked_role" "AWSServiceRoleForECS" {
 }
 
 resource "aws_ecs_cluster" "ecs_cluster" {
-  name       = local.ecs.cluster_name
+  name = local.ecs.cluster_name
   depends_on = [aws_iam_service_linked_role.AWSServiceRoleForECS]
 }
 
@@ -117,7 +117,8 @@ data "aws_iam_policy_document" "task_execution_policy" {
     resources = [
       aws_secretsmanager_secret.bag_api_key_secret.arn,
       aws_secretsmanager_secret.mcpo_api_key_secret.arn,
-      aws_secretsmanager_secret.gitlab_token_secret.arn
+      aws_secretsmanager_secret.gitlab_token_secret.arn,
+      aws_secretsmanager_secret.linear_token_secret.arn
     ]
   }
 
@@ -196,6 +197,7 @@ resource "aws_ecs_task_definition" "task_definition_openwebui" {
   memory                   = 4096
   cpu                      = 2048
   execution_role_arn       = module.task_execution_role.arn
+  task_role_arn            = module.task_execution_role.arn
 
   container_definitions = jsonencode([
     {
@@ -325,7 +327,7 @@ resource "aws_efs_mount_target" "efs_mount" {
 module "ecs_service_module_sg" {
   source = "./modules/security_group"
 
-  name   = "${local.ecs.service_name_bedrock_access_gateway}-sg"
+  name   = "module-sg"
   vpc_id = aws_vpc.default.id
 
   cidr_egresses = [{
@@ -399,7 +401,7 @@ resource "aws_ecs_service" "ecs_service_bag" {
   force_new_deployment = true
 
   network_configuration {
-    subnets          = aws_subnet.bag_private_subnets[*].id
+    subnets          = aws_subnet.module_private_subnets[*].id
     security_groups  = [module.ecs_service_module_sg.id]
     assign_public_ip = false
   }
@@ -443,6 +445,10 @@ resource "aws_ecs_task_definition" "task_definition_mcpo" {
         {
           name      = "GITLAB_PERSONAL_ACCESS_TOKEN"
           valueFrom = aws_secretsmanager_secret.gitlab_token_secret.arn
+        },
+        {
+          name      = "LINEAR_API_KEY"
+          valueFrom = aws_secretsmanager_secret.linear_token_secret.arn
         }
       ]
       logConfiguration = {
@@ -468,7 +474,7 @@ resource "aws_ecs_service" "ecs_service_mcpo" {
   force_new_deployment = true
 
   network_configuration {
-    subnets          = aws_subnet.bag_private_subnets[*].id
+    subnets          = aws_subnet.module_private_subnets[*].id
     security_groups  = [module.ecs_service_module_sg.id]
     assign_public_ip = true
   }
