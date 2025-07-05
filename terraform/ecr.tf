@@ -1,7 +1,7 @@
 locals {
-  bag_working_dir       = ".assets//bedrock-access-gateway/src"
-  openwebui_working_dir = ".assets/open-webui"
-  mcpo_working_dir      = ".assets/mcpo"
+  bag_working_dir       = "assets//bedrock-access-gateway/src"
+  openwebui_working_dir = "assets/open-webui"
+  mcpo_working_dir      = "assets/mcpo"
 }
 
 # ECR Repositories
@@ -40,7 +40,8 @@ resource "null_resource" "build_bag_image" {
     EOF
   }
 
-  depends_on = [aws_ecr_repository.bag_repository]
+  depends_on = [aws_ecr_repository.bag_repository,
+  null_resource.clone_bedrock_access_gateway]
 }
 
 resource "null_resource" "build_webui_image" {
@@ -60,7 +61,8 @@ resource "null_resource" "build_webui_image" {
     EOF
   }
 
-  depends_on = [aws_ecr_repository.openwebui_repository]
+  depends_on = [aws_ecr_repository.openwebui_repository,
+  null_resource.clone_open_webui]
 }
 
 resource "null_resource" "build_mcpo_image" {
@@ -79,5 +81,6 @@ resource "null_resource" "build_mcpo_image" {
     EOF
   }
 
-  depends_on = [aws_ecr_repository.mcpo_repository]
+  depends_on = [aws_ecr_repository.mcpo_repository,
+  null_resource.create_assets_dir]
 }
