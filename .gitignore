@@ -4,7 +4,6 @@
 *.tfstate.*
 *.tfvars
 
-bedrock-access-gateway
-bedrock-access-gateway/*
-open-webui
-open-webui/*
+# Cloned external repositories (managed by Terraform)
+assets/bedrock-access-gateway
+assets/open-webui

@@ -1,7 +1,7 @@
 locals {
-  bag_working_dir       = ".assets//bedrock-access-gateway/src"
-  openwebui_working_dir = ".assets/open-webui"
-  mcpo_working_dir      = ".assets/mcpo"
+  bag_working_dir       = "assets//bedrock-access-gateway/src"
+  openwebui_working_dir = "assets/open-webui"
+  mcpo_working_dir      = "assets/mcpo"
 }
 
 # ECR Repositories
@@ -26,7 +26,9 @@ resource "aws_ecr_repository" "mcpo_repository" {
 # Build and push Docker images to ECR
 resource "null_resource" "build_bag_image" {
   triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(local.bag_working_dir, "**") : filesha1("${local.bag_working_dir}/${f}")]))
+    # Use static trigger to ensure consistent behavior
+    repository_url = aws_ecr_repository.bag_repository.repository_url
+    rebuild = "1" # Change this value to force rebuild
   }
 
   provisioner "local-exec" {
@@ -40,12 +42,15 @@ resource "null_resource" "build_bag_image" {
     EOF
   }
 
-  depends_on = [aws_ecr_repository.bag_repository]
+  depends_on = [aws_ecr_repository.bag_repository,
+  null_resource.clone_bedrock_access_gateway]
 }
 
 resource "null_resource" "build_webui_image" {
   triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(local.openwebui_working_dir, "**") : filesha1("${local.openwebui_working_dir}/${f}")]))
+    # Use static trigger to ensure consistent behavior
+    repository_url = aws_ecr_repository.openwebui_repository.repository_url
+    rebuild = "1" # Change this value to force rebuild
   }
 
   # It may be necessary to build using NODE_OPTIONS="--max-old-space-size=4096" to make it work
@@ -60,12 +65,15 @@ resource "null_resource" "build_webui_image" {
     EOF
   }
 
-  depends_on = [aws_ecr_repository.openwebui_repository]
+  depends_on = [aws_ecr_repository.openwebui_repository,
+  null_resource.clone_open_webui]
 }
 
 resource "null_resource" "build_mcpo_image" {
   triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(local.mcpo_working_dir, "**") : filesha1("${local.mcpo_working_dir}/${f}")]))
+    # Use static trigger to ensure consistent behavior
+    repository_url = aws_ecr_repository.mcpo_repository.repository_url
+    rebuild = "1" # Change this value to force rebuild
   }
 
   provisioner "local-exec" {
@@ -79,5 +87,6 @@ resource "null_resource" "build_mcpo_image" {
     EOF
   }
 
-  depends_on = [aws_ecr_repository.mcpo_repository]
+  depends_on = [aws_ecr_repository.mcpo_repository,
+  null_resource.create_assets_dir]
 }
