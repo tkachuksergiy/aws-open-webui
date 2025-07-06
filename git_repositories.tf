@@ -27,7 +27,7 @@ resource "null_resource" "clone_open_webui" {
       if [ ! -d "assets/open-webui" ]; then
         git clone https://github.com/open-webui/open-webui assets/open-webui
         # Modify Dockerfile for memory optimization (macOS sed syntax)
-        sed -i '' 'RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build' assets/open-webui/Dockerfile
+        sed -i '' 's/RUN npm run build/RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build/' assets/open-webui/Dockerfile
       else
         echo "Open WebUI already exists, skipping clone"
       fi
