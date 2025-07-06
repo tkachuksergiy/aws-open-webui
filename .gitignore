@@ -5,11 +5,5 @@
 *.tfvars
 
 # Cloned external repositories (managed by Terraform)
-terraform/assets/bedrock-access-gateway
-terraform/assets/open-webui
-
-# Legacy paths (can be removed after restructure)
-bedrock-access-gateway
-bedrock-access-gateway/*
-open-webui
-open-webui/*
+assets/bedrock-access-gateway
+assets/open-webui
