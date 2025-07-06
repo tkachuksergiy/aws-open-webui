@@ -73,7 +73,8 @@ resource "null_resource" "build_mcpo_image" {
   triggers = {
     # Use static trigger to ensure consistent behavior
     repository_url = aws_ecr_repository.mcpo_repository.repository_url
-    rebuild = "1" # Change this value to force rebuild
+    config_hash    = filemd5("${path.module}/assets/mcpo/config.json")
+    dockerfile_hash = filemd5("${path.module}/assets/mcpo/Dockerfile")
   }
 
   provisioner "local-exec" {
