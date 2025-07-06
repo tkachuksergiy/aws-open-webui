@@ -29,10 +29,3 @@ resource "aws_secretsmanager_secret_version" "mcpo_api_key_secret_version" {
 }
 
 # Other secrets
-resource "aws_secretsmanager_secret" "gitlab_token_secret" {
-  name_prefix = "gitlab-token-"
-}
-
-resource "aws_secretsmanager_secret" "linear_token_secret" {
-  name_prefix = "linear-token-"
-}
