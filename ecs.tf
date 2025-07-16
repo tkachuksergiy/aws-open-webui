@@ -3,7 +3,6 @@ locals {
     cluster_name                        = "webui-bedrock-cluster"
     service_name_webui                  = "openwebui"
     service_name_bedrock_access_gateway = "bedrock-access-gateway"
-    service_name_mcpo                   = "mcpo"
   }
 }
 
@@ -115,8 +114,7 @@ data "aws_iam_policy_document" "task_execution_policy" {
   statement {
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
-      aws_secretsmanager_secret.bag_api_key_secret.arn,
-      aws_secretsmanager_secret.mcpo_api_key_secret.arn
+      aws_secretsmanager_secret.bag_api_key_secret.arn
     ]
   }
 
@@ -409,71 +407,6 @@ resource "aws_ecs_service" "ecs_service_bag" {
   }
 }
 
-## MCPO ECS Service
-resource "aws_ecs_task_definition" "task_definition_mcpo" {
-  family                   = local.ecs.service_name_mcpo
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  memory                   = 1024
-  cpu                      = 512
-  execution_role_arn       = module.task_execution_role.arn
-
-  runtime_platform {
-    cpu_architecture        = "ARM64"
-    operating_system_family = "LINUX"
-  }
-
-  container_definitions = jsonencode([
-    {
-      name      = "mcpo"
-      image     = "${aws_ecr_repository.mcpo_repository.repository_url}:latest"
-      essential = true
-      portMappings = [
-        {
-          containerPort = 80
-          hostPort      = 80
-          protocol      = "tcp"
-        }
-      ]
-      secrets = [
-        {
-          name      = "API_KEY"
-          valueFrom = aws_secretsmanager_secret.mcpo_api_key_secret.arn
-        }
-      ]
-      logConfiguration = {
-        logDriver = "awslogs",
-        options = {
-          awslogs-group         = "/ecs/${local.ecs.cluster_name}"
-          awslogs-region        = var.region
-          awslogs-create-group  = "true"
-          awslogs-stream-prefix = "ecs"
-        }
-      }
-    }
-  ])
-}
-
-resource "aws_ecs_service" "ecs_service_mcpo" {
-  name            = local.ecs.service_name_mcpo
-  cluster         = aws_ecs_cluster.ecs_cluster.id
-  task_definition = aws_ecs_task_definition.task_definition_mcpo.arn
-
-  desired_count        = 1
-  launch_type          = "FARGATE"
-  force_new_deployment = true
-
-  network_configuration {
-    subnets          = aws_subnet.module_private_subnets[*].id
-    security_groups  = [module.ecs_service_module_sg.id]
-    assign_public_ip = true
-  }
-
-  service_registries {
-    registry_arn = aws_service_discovery_service.sd_discovery_service_mcpo.arn
-  }
-}
-
 # Service Discovery for Bedrock Access Gateway
 resource "aws_service_discovery_private_dns_namespace" "sd_dns_namespace" {
   name = "bedrock.local"
@@ -482,25 +415,6 @@ resource "aws_service_discovery_private_dns_namespace" "sd_dns_namespace" {
 
 resource "aws_service_discovery_service" "sd_discovery_service_bag" {
   name = "gateway"
-
-  dns_config {
-    namespace_id = aws_service_discovery_private_dns_namespace.sd_dns_namespace.id
-
-    dns_records {
-      ttl  = 10
-      type = "A"
-    }
-
-    routing_policy = "MULTIVALUE"
-  }
-
-  health_check_custom_config {
-    failure_threshold = 1
-  }
-}
-
-resource "aws_service_discovery_service" "sd_discovery_service_mcpo" {
-  name = "mcpo"
 
   dns_config {
     namespace_id = aws_service_discovery_private_dns_namespace.sd_dns_namespace.id

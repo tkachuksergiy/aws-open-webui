@@ -1,7 +1,6 @@
 locals {
   bag_working_dir       = "assets//bedrock-access-gateway/src"
   openwebui_working_dir = "assets/open-webui"
-  mcpo_working_dir      = "assets/mcpo"
 }
 
 # ECR Repositories
@@ -13,12 +12,6 @@ resource "aws_ecr_repository" "bag_repository" {
 
 resource "aws_ecr_repository" "openwebui_repository" {
   name                 = "openwebui"
-  image_tag_mutability = "MUTABLE"
-  force_delete         = true
-}
-
-resource "aws_ecr_repository" "mcpo_repository" {
-  name                 = "mcpo"
   image_tag_mutability = "MUTABLE"
   force_delete         = true
 }
@@ -67,27 +60,4 @@ resource "null_resource" "build_webui_image" {
 
   depends_on = [aws_ecr_repository.openwebui_repository,
   null_resource.clone_open_webui]
-}
-
-resource "null_resource" "build_mcpo_image" {
-  triggers = {
-    # Use static trigger to ensure consistent behavior
-    repository_url = aws_ecr_repository.mcpo_repository.repository_url
-    config_hash    = filemd5("${path.module}/assets/mcpo/config.json")
-    dockerfile_hash = filemd5("${path.module}/assets/mcpo/Dockerfile")
-  }
-
-  provisioner "local-exec" {
-    working_dir = local.mcpo_working_dir
-    command     = <<EOF
-        aws ecr get-login-password --region ${var.region} --profile ${var.profile} | docker login --username AWS --password-stdin ${var.account_id}.dkr.ecr.${var.region}.amazonaws.com
-        docker build \
-        -t ${aws_ecr_repository.mcpo_repository.repository_url}:latest \
-        --platform=linux/arm64 . \
-        && docker push ${aws_ecr_repository.mcpo_repository.repository_url}:latest
-    EOF
-  }
-
-  depends_on = [aws_ecr_repository.mcpo_repository,
-  null_resource.create_assets_dir]
 }
